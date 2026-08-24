@@ -71,7 +71,7 @@ jobs:
           mkdir build
           cd build
 
-          cmake .. -DMayo_BuildTests=ON -DMayo_BuildPluginAssimp=ON
+          cmake .. -DMayo_BuildTests=ON -DMayo_BuildPluginAssimp=ON -DMayo_UseOvrtx=OFF
           cmake --build . --config Release --parallel
 
           # Execute Unit Tests

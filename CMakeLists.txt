@@ -57,6 +57,7 @@ if(Git_FOUND)
 endif()
 
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
+include(GNUInstallDirs)
 
 # Find bit size of the target machine
 math(EXPR Mayo_TargetArchBitSize "8 * ${CMAKE_SIZEOF_VOID_P}")
@@ -86,12 +87,31 @@ endif()
 
 option(Mayo_BuildApp "Build Mayo GUI application" ON)
 option(Mayo_BuildConvCli "Build Mayo CLI converter" ON)
+# NVIDIA ovrtx currently ships Windows and Linux x86_64/aarch64 packages only.
+set(Mayo_OvrtxPlatformSupported OFF)
+if(WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8)
+    set(Mayo_OvrtxPlatformSupported ON)
+elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|amd64|AMD64|aarch64|arm64")
+    set(Mayo_OvrtxPlatformSupported ON)
+endif()
+
 option(
     Mayo_UseOvrtx
     "Replace the built-in OCCT OpenGL viewport with NVIDIA ovrtx (downloads the ovrtx/ovstage SDK)"
-    ON
+    ${Mayo_OvrtxPlatformSupported}
 )
-message(STATUS "Mayo_UseOvrtx=${Mayo_UseOvrtx}")
+if(Mayo_UseOvrtx AND NOT Mayo_OvrtxPlatformSupported)
+    message(WARNING
+        "Mayo_UseOvrtx=ON is not supported on ${CMAKE_SYSTEM_NAME} ${CMAKE_SYSTEM_PROCESSOR}. "
+        "NVIDIA ovrtx packages exist for Windows/Linux x86_64 and aarch64 only. "
+        "Falling back to the OCCT OpenGL viewport."
+    )
+    set(Mayo_UseOvrtx OFF CACHE BOOL
+        "Replace the built-in OCCT OpenGL viewport with NVIDIA ovrtx (downloads the ovrtx/ovstage SDK)"
+        FORCE
+    )
+endif()
+message(STATUS "Mayo_UseOvrtx=${Mayo_UseOvrtx} (platform_supported=${Mayo_OvrtxPlatformSupported})")
 
 if(MSVC)
     option(Mayo_EnablePch "Enable precompiled headers" OFF)
@@ -243,6 +263,13 @@ file(
     ${PROJECT_SOURCE_DIR}/src/gui/*.cpp
     ${PROJECT_SOURCE_DIR}/src/3rdparty/fmt/src/format.cc
 )
+list(
+    APPEND MayoCore_SourceFiles
+    ${PROJECT_SOURCE_DIR}/src/ovrtx/ovrtx_usd_types.cpp
+    ${PROJECT_SOURCE_DIR}/src/ovrtx/ovrtx_camera.cpp
+    ${PROJECT_SOURCE_DIR}/src/ovrtx/ovrtx_usd_writer.cpp
+    ${PROJECT_SOURCE_DIR}/src/ovrtx/ovrtx_scene_sync.cpp
+)
 
 file(
     GLOB MayoIO_SourceFiles
@@ -263,6 +290,13 @@ file(
     ${PROJECT_SOURCE_DIR}/src/base/*.h
     ${PROJECT_SOURCE_DIR}/src/graphics/*.h
     ${PROJECT_SOURCE_DIR}/src/gui/*.h
+)
+list(
+    APPEND MayoCore_HeaderFiles
+    ${PROJECT_SOURCE_DIR}/src/ovrtx/ovrtx_usd_types.h
+    ${PROJECT_SOURCE_DIR}/src/ovrtx/ovrtx_camera.h
+    ${PROJECT_SOURCE_DIR}/src/ovrtx/ovrtx_usd_writer.h
+    ${PROJECT_SOURCE_DIR}/src/ovrtx/ovrtx_scene_sync.h
 )
 
 file(
@@ -557,10 +591,8 @@ if(NOT (WIN32 AND QT_VERSION_MAJOR EQUAL 5))
 endif()
 
 if(Mayo_UseOvrtx AND Mayo_BuildApp)
-    file(GLOB MayoOvrtx_HeaderFiles ${PROJECT_SOURCE_DIR}/src/ovrtx/*.h)
-    file(GLOB MayoOvrtx_SourceFiles ${PROJECT_SOURCE_DIR}/src/ovrtx/*.cpp)
-    list(APPEND MayoApp_HeaderFiles ${MayoOvrtx_HeaderFiles})
-    list(APPEND MayoApp_SourceFiles ${MayoOvrtx_SourceFiles})
+    list(APPEND MayoApp_HeaderFiles ${PROJECT_SOURCE_DIR}/src/ovrtx/ovrtx_engine.h)
+    list(APPEND MayoApp_SourceFiles ${PROJECT_SOURCE_DIR}/src/ovrtx/ovrtx_engine.cpp)
     list(APPEND MayoApp_LinkLibraries ovrtx::ovrtx_static ovstage::ovstage_static)
 else()
     list(FILTER MayoApp_HeaderFiles EXCLUDE REGEX "widget_ovrtx_view\\.h$")
@@ -824,6 +856,29 @@ if(Mayo_BuildTests)
 endif()
 
 ##########
+# Install
+##########
+
+if(Mayo_BuildApp)
+    install(
+        TARGETS mayo
+        BUNDLE DESTINATION .
+        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+    )
+endif()
+if(Mayo_BuildConvCli)
+    install(TARGETS mayo-conv RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+endif()
+if(Mayo_UseOvrtx AND Mayo_BuildApp)
+    if(DEFINED OVRTX_BINARY_DIR)
+        install(DIRECTORY "${OVRTX_BINARY_DIR}/" DESTINATION "${CMAKE_INSTALL_BINDIR}/ovrtx")
+    endif()
+    if(DEFINED OVSTAGE_BINARY_DIR)
+        install(DIRECTORY "${OVSTAGE_BINARY_DIR}/" DESTINATION "${CMAKE_INSTALL_BINDIR}/ovstage")
+    endif()
+endif()
+
+##########
 # Target: OtherFiles
 ##########
 
@@ -838,6 +893,7 @@ add_custom_target(
     .github/workflows/ci_linux_ubuntu_armv7.yml
     .github/workflows/ci_macos.yml
     .github/workflows/ci_macos_conda.yml
+    .github/workflows/ci_ovrtx_usd.yml
     .github/workflows/ci_windows.yml
     .github/workflows/sonar.yml
     images/credits.txt

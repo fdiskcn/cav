@@ -62,5 +62,9 @@ struct UsdScene {
 Vec3f zUpToYUp(Vec3f p);
 std::string sanitizePrimName(std::string_view raw, int fallbackIndex);
 
+// Hash of geometry, materials, visibility and camera intrinsics (not eye/center/up).
+// Used to decide whether ovstage must be re-populated versus a camera xform update.
+uint64_t sceneGeometryDigest(const UsdScene& scene);
+
 } // namespace Ovrtx
 } // namespace Mayo

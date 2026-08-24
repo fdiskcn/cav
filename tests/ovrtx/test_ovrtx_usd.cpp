@@ -107,6 +107,17 @@ int main()
         check(contains(usda, "sourceName = \"LdrColor\""), "LdrColor AOV");
         check(contains(usda, "int2 resolution = (640, 480)"), "product resolution");
         check(!contains(usda, "def Mesh"), "empty scene has no mesh");
+        check(contains(usda, "def Scope \"Render\""), "Render is a Scope prim");
+        check(contains(usda, "def Scope \"Vars\""), "RenderVars live under /Render/Vars");
+        check(contains(usda, "def RenderVar \"LdrColor\""), "LdrColor RenderVar prim");
+        check(contains(usda, "rel orderedVars = </Render/Vars/LdrColor>"),
+              "orderedVars points at /Render/Vars/LdrColor");
+        check(!contains(usda, "[<LdrColor>]"), "orderedVars is not a relative token list");
+        check(contains(usda, "OmniRtxCameraAutoExposureAPI"), "camera auto-exposure schema");
+        check(contains(usda, "float inputs:intensity"), "USDLux inputs:intensity on lights");
+        check(contains(usda, "uniform string sourceName = \"LdrColor\""),
+              "RenderVar sourceName is uniform");
+        check(contains(usda, "float verticalAperture"), "perspective vertical aperture");
     }
 
     {
@@ -139,6 +150,60 @@ int main()
         check(!contains(usda, "ShouldSkip"), "empty mesh omitted");
         check(contains(usda, "def Mesh \"Hidden\""), "hidden mesh present");
         check(contains(usda, "token visibility = \"invisible\""), "hidden mesh invisible");
+    }
+
+    {
+        UsdScene scene;
+        scene.camera.width = 800;
+        scene.camera.height = 400;
+        scene.camera.orthographic = true;
+        scene.camera.orthoHeight = 120.f;
+        scene.camera.fovYDegrees = 45.f;
+        const std::string usda = writeUsda(scene);
+        check(contains(usda, "token projection = \"orthographic\""), "orthographic projection");
+        check(contains(usda, "float verticalAperture = 120"), "ortho height is verticalAperture");
+        check(contains(usda, "int2 resolution = (800, 400)"), "ortho product resolution");
+    }
+
+    {
+        const float v = verticalApertureMm(16.f / 9.f);
+        check(v > 10.f && v < kUsdHorizontalApertureMm, "perspective verticalAperture < horizontal");
+        const float square = verticalApertureMm(1.f);
+        check(approx(square, kUsdHorizontalApertureMm, 1e-3f),
+              "square film verticalAperture equals horizontal");
+    }
+
+    {
+        const std::string usda = writeUsda(UsdScene{});
+        check(contains(usda, kCameraPrimPath) || contains(usda, "def Camera \"Camera\""),
+              "default camera prim name");
+        check(contains(usda, kRenderProductPath) || contains(usda, "def RenderProduct \"MainCam\""),
+              "default render product path");
+    }
+
+    {
+        UsdScene a;
+        UsdMesh m;
+        m.primName = "Box";
+        m.points = { { 0.f, 0.f, 0.f }, { 1.f, 0.f, 0.f }, { 0.f, 1.f, 0.f } };
+        m.faceVertexIndices = { 0, 1, 2 };
+        a.meshes.push_back(m);
+        UsdScene b = a;
+        b.camera.eye = { 10.f, 2.f, 3.f };
+        check(sceneGeometryDigest(a) == sceneGeometryDigest(b),
+              "digest ignores camera eye");
+        b.camera.orthoHeight = 50.f;
+        b.camera.orthographic = true;
+        check(sceneGeometryDigest(a) != sceneGeometryDigest(b),
+              "digest changes with ortho intrinsics");
+        UsdScene c = a;
+        c.meshes[0].displayColor = { 1.f, 0.f, 0.f };
+        check(sceneGeometryDigest(a) != sceneGeometryDigest(c),
+              "digest changes with displayColor");
+        UsdScene d = a;
+        d.meshes[0].points[0].x = 2.f;
+        check(sceneGeometryDigest(a) != sceneGeometryDigest(d),
+              "digest changes with mesh points");
     }
 
     std::cout << '\n' << g_passed << " passed, " << g_failed << " failed\n";

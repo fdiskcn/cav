@@ -7,13 +7,33 @@
 #include "../gui/gui_document.h"
 #include "../ovrtx/ovrtx_scene_sync.h"
 
+#include <Aspect_NeutralWindow.hxx>
+#include <Standard_Version.hxx>
+#include <V3d_View.hxx>
+
 #include <QtGui/QPainter>
 #include <QtGui/QResizeEvent>
+#include <QtGui/QShowEvent>
 
 #include <algorithm>
 #include <cmath>
 
 namespace Mayo {
+
+namespace {
+
+class OvrtxOccWindow : public Aspect_NeutralWindow {
+public:
+#if OCC_VERSION_HEX >= 0x070600
+    double DevicePixelRatio() const override { return m_pixelRatio; }
+#endif
+    void SetDevicePixelRatio(double ratio) { m_pixelRatio = ratio; }
+
+private:
+    double m_pixelRatio = 1.;
+};
+
+} // namespace
 
 WidgetOvrtxView::WidgetOvrtxView(const OccHandle<V3d_View>& view, QWidget* parent)
     : QWidget(parent),
@@ -22,6 +42,8 @@ WidgetOvrtxView::WidgetOvrtxView(const OccHandle<V3d_View>& view, QWidget* paren
 {
     this->setAttribute(Qt::WA_OpaquePaintEvent);
     this->setAutoFillBackground(false);
+    this->setMouseTracking(true);
+    this->setFocusPolicy(Qt::StrongFocus);
     this->setMinimumSize(64, 64);
     m_status = tr("Initializing NVIDIA ovrtx…");
 }
@@ -51,6 +73,9 @@ void WidgetOvrtxView::bindGuiDocument(GuiDocument* guiDoc)
     m_guiDoc->document()->signalEntityAboutToBeDestroyed.connectSlot([=](TreeNodeId) {
         this->markSceneDirty();
     });
+    m_guiDoc->graphicsScene()->signalSelectionChanged.connectSlot([=] {
+        this->markSceneDirty();
+    });
     this->markSceneDirty();
 }
 
@@ -58,6 +83,45 @@ void WidgetOvrtxView::markSceneDirty()
 {
     m_sceneDirty = true;
     this->update();
+}
+
+void WidgetOvrtxView::ensureViewWindow()
+{
+    const OccHandle<V3d_View>& view = this->v3dView();
+    if (view.IsNull())
+        return;
+
+    const int w = std::max(1, this->width());
+    const int h = std::max(1, this->height());
+    const double dpr = this->devicePixelRatioF();
+
+    auto wnd = OccHandle<OvrtxOccWindow>::DownCast(view->Window());
+    if (wnd.IsNull()) {
+        wnd = new OvrtxOccWindow;
+        wnd->SetVirtual(true);
+        wnd->SetSize(w, h);
+        wnd->SetDevicePixelRatio(dpr);
+        view->SetWindow(wnd);
+        if (!wnd->IsMapped())
+            wnd->Map();
+        view->MustBeResized();
+        return;
+    }
+
+    int cw = 0;
+    int ch = 0;
+    wnd->Size(cw, ch);
+    const bool sizeChanged = cw != w || ch != h;
+#if OCC_VERSION_HEX >= 0x070600
+    const bool dprChanged = std::abs(wnd->DevicePixelRatio() - dpr) > 1e-6;
+#else
+    const bool dprChanged = false;
+#endif
+    if (sizeChanged || dprChanged) {
+        wnd->SetSize(w, h);
+        wnd->SetDevicePixelRatio(dpr);
+        view->MustBeResized();
+    }
 }
 
 QSize WidgetOvrtxView::renderSize() const
@@ -69,8 +133,17 @@ QSize WidgetOvrtxView::renderSize() const
     );
 }
 
+void WidgetOvrtxView::showEvent(QShowEvent* event)
+{
+    QWidget::showEvent(event);
+    this->ensureViewWindow();
+    this->markSceneDirty();
+}
+
 void WidgetOvrtxView::redraw()
 {
+    this->ensureViewWindow();
+
     const QSize sz = this->renderSize();
     if (sz.width() != m_lastWidth || sz.height() != m_lastHeight) {
         m_lastWidth = sz.width();
@@ -98,12 +171,14 @@ void WidgetOvrtxView::redraw()
         scene.camera = Ovrtx::cameraFromV3dView(this->v3dView(), sz.width(), sz.height());
     }
 
-    if (m_sceneDirty) {
+    const uint64_t digest = Ovrtx::sceneGeometryDigest(scene);
+    if (m_sceneDirty || digest != m_lastDigest) {
         if (!m_engine->loadScene(scene)) {
             m_status = QString::fromStdString(m_engine->lastError());
             this->update();
             return;
         }
+        m_lastDigest = digest;
         m_sceneDirty = false;
     }
     else if (!m_engine->updateCamera(scene.camera)) {
@@ -154,6 +229,7 @@ void WidgetOvrtxView::paintEvent(QPaintEvent*)
 void WidgetOvrtxView::resizeEvent(QResizeEvent* event)
 {
     QWidget::resizeEvent(event);
+    this->ensureViewWindow();
     this->markSceneDirty();
 }
 

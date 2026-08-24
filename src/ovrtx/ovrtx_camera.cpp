@@ -79,5 +79,12 @@ float focalLengthMm(float fovYDegrees, float aspect, float horizontalApertureMm)
     return horizontalApertureMm / (2.f * half);
 }
 
+float verticalApertureMm(float aspect, float horizontalApertureMm)
+{
+    if (aspect <= 1e-8f)
+        return horizontalApertureMm;
+    return horizontalApertureMm / aspect;
+}
+
 } // namespace Ovrtx
 } // namespace Mayo

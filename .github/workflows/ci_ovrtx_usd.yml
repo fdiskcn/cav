@@ -1,0 +1,21 @@
+name: ovrtx USD tests
+
+on: [push, pull_request]
+
+jobs:
+  usd:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    name: ovrtx-usd-${{ matrix.os }}
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v7
+
+    - name: Configure, build and test (no Qt / OCCT / GPU)
+      run: |
+        cmake -S tests/ovrtx -B build-ovrtx-usd -DCMAKE_CXX_COMPILER=g++
+        cmake --build build-ovrtx-usd
+        ctest --test-dir build-ovrtx-usd --output-on-failure

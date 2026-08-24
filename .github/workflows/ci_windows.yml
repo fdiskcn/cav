@@ -99,10 +99,11 @@ jobs:
         set occ_version=${{matrix.occ_version}}
         set assimp_version=${{matrix.assimp_version}}
 
-        cmake .. ^
+          cmake .. ^
           -DMayo_EnablePch=${{matrix.pch}} ^
           -DMayo_BuildTests=ON ^
           -DMayo_BuildPluginAssimp=ON ^
+          -DMayo_UseOvrtx=OFF ^
           -DMayo_PostBuildCopyRuntimeDLLs=ON ^
           -DOpenCASCADE_DIR=${{github.workspace}}/OpenCASCADE-%occ_version%-vc14-64/opencascade-%occ_version% ^
           -Dassimp_DIR=${{github.workspace}}/assimp-%assimp_version%/lib/cmake/assimp-%assimp_version:~0,3%

@@ -9,6 +9,7 @@
 
 #include <QtGui/QImage>
 #include <QtWidgets/QWidget>
+#include <cstdint>
 #include <memory>
 
 namespace Mayo {
@@ -30,11 +31,13 @@ public:
     static WidgetOvrtxView* create(const OccHandle<V3d_View>& view, QWidget* parent);
 
 protected:
+    void showEvent(QShowEvent* event) override;
     void paintEvent(QPaintEvent* event) override;
     void resizeEvent(QResizeEvent* event) override;
 
 private:
     void markSceneDirty();
+    void ensureViewWindow();
     QSize renderSize() const;
 
     GuiDocument* m_guiDoc = nullptr;
@@ -42,6 +45,7 @@ private:
     QImage m_frame;
     QString m_status;
     bool m_sceneDirty = true;
+    uint64_t m_lastDigest = 0;
     int m_lastWidth = 0;
     int m_lastHeight = 0;
 };

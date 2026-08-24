@@ -58,6 +58,7 @@ public:
 
     // Gets the graphics scene, container of all document's graphics objects
     GraphicsScene* graphicsScene() { return &m_gfxScene; }
+    const GraphicsScene* graphicsScene() const { return &m_gfxScene; }
 
     // Returns the bounding box of all graphics objects satisfying `flags`
     Bnd_Box graphicsBoundingBox(GraphicsBoundingBoxFlags flags = AllGraphics) const;

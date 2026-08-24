@@ -69,6 +69,7 @@ jobs:
             -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
             -DMayo_BuildTests=ON \
             -DMayo_BuildPluginAssimp=ON \
+            -DMayo_UseOvrtx=OFF \
             -DMayo_EnableCoverage=ON \
             -DOpenCASCADE_DIR=/opt/occt/lib/cmake/opencascade
 
