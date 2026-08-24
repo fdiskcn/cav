@@ -10,6 +10,8 @@
 #include "../base/libtree.h"
 #include "../base/mesh_access.h"
 #include "../graphics/graphics_object_ptr.h"
+#include "../graphics/graphics_owner_ptr.h"
+#include "../graphics/graphics_scene.h"
 #include "../gui/gui_document.h"
 
 #include <AIS_InteractiveObject.hxx>
@@ -22,6 +24,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <unordered_set>
 
 namespace Mayo {
 namespace Ovrtx {
@@ -67,6 +70,16 @@ UsdScene collectSceneFromGuiDocument(const GuiDocument* guiDoc, int width, int h
     if (!doc)
         return scene;
 
+    std::unordered_set<TreeNodeId> selectedNodes;
+    guiDoc->graphicsScene()->foreachSelectedOwner([&](const GraphicsOwnerPtr& owner) {
+        if (!owner)
+            return;
+        const auto obj = GraphicsObjectPtr::DownCast(owner->Selectable());
+        const TreeNodeId id = guiDoc->nodeFromGraphicsObject(obj);
+        if (id != 0)
+            selectedNodes.insert(id);
+    });
+
     int meshIndex = 0;
     traverseTree(doc->modelTree(), [&](TreeNodeId nodeId) {
         if (guiDoc->nodeVisibleState(nodeId) == CheckState::Off)
@@ -96,6 +109,8 @@ UsdScene collectSceneFromGuiDocument(const GuiDocument* guiDoc, int width, int h
             else if (auto c0 = access.nodeColor(0)) {
                 mesh.displayColor = { float(c0->Red()), float(c0->Green()), float(c0->Blue()) };
             }
+            if (selectedNodes.count(nodeId) != 0)
+                mesh.displayColor = { 1.f, 0.72f, 0.18f };
 
             for (int i = 1; i <= tri->NbNodes(); ++i) {
                 const gp_Pnt p = tri->Node(i).Transformed(trsf);

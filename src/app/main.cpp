@@ -340,6 +340,10 @@ static int runApp(QCoreApplication* qtApp)
     appModule->addLibraryInfo(
         IO::GmioLib::strName(), IO::GmioLib::strVersion(), IO::GmioLib::strVersionDetails()
     );
+#ifdef MAYO_HAVE_OVRTX
+    appModule->addLibraryInfo("NVIDIA ovrtx", "0.4.1", "RTX viewport renderer");
+    appModule->addLibraryInfo("NVIDIA ovstage", "0.1.1", "USD stage runtime");
+#endif
 
     {
         // Load translation files

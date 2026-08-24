@@ -90,6 +90,12 @@ std::string writeUsda(const UsdScene& scene)
     const float aspect = float(width) / float(height);
     const Mat4d camXform = lookAtCameraToWorld(cam.eye, cam.center, cam.up);
     const float focal = focalLengthMm(cam.fovYDegrees, aspect);
+    const float hAperture = cam.orthographic
+        ? std::max(cam.orthoHeight, 0.001f) * aspect
+        : kUsdHorizontalApertureMm;
+    const float vAperture = cam.orthographic
+        ? std::max(cam.orthoHeight, 0.001f)
+        : verticalApertureMm(aspect);
 
     std::ostringstream os;
     os << std::setprecision(9);
@@ -101,12 +107,15 @@ std::string writeUsda(const UsdScene& scene)
 
     os << "def Xform \"World\"\n{\n";
     os << "    def Camera \"Camera\" (\n";
-    os << "        prepend apiSchemas = [\"OmniSensorGenericCameraAPI\"]\n";
+    os << "        prepend apiSchemas = [\"OmniRtxCameraAutoExposureAPI_1\", \"OmniRtxCameraExposureAPI_1\"]\n";
     os << "    )\n    {\n";
     os << "        token projection = \"" << (cam.orthographic ? "orthographic" : "perspective") << "\"\n";
     os << "        float focalLength = " << focal << "\n";
-    os << "        float horizontalAperture = " << kUsdHorizontalApertureMm << "\n";
+    os << "        float horizontalAperture = " << hAperture << "\n";
+    os << "        float verticalAperture = " << vAperture << "\n";
     os << "        float2 clippingRange = (" << std::max(cam.zNear, 0.001f) << ", " << cam.zFar << ")\n";
+    os << "        float fStop = 0\n";
+    os << "        bool omni:rtx:autoExposure:enabled = 1\n";
     os << "        matrix4d xformOp:transform = ";
     writeMat(os, camXform);
     os << "\n";
@@ -114,14 +123,14 @@ std::string writeUsda(const UsdScene& scene)
     os << "    }\n\n";
 
     os << "    def DomeLight \"Sky\"\n    {\n";
-    os << "        float intensity = 800\n";
-    os << "        color3f color = (1, 1, 1)\n";
+    os << "        float inputs:intensity = 800\n";
+    os << "        color3f inputs:color = (0.35, 0.35, 0.38)\n";
     os << "    }\n\n";
 
     os << "    def DistantLight \"KeyLight\"\n    {\n";
-    os << "        float intensity = 2000\n";
-    os << "        float angle = 3\n";
-    os << "        color3f color = (1, 0.98, 0.94)\n";
+    os << "        float inputs:intensity = 2500\n";
+    os << "        float inputs:angle = 3\n";
+    os << "        color3f inputs:color = (1, 0.98, 0.94)\n";
     os << "        double3 xformOp:rotateXYZ = (-35, 40, 0)\n";
     os << "        uniform token[] xformOpOrder = [\"xformOp:rotateXYZ\"]\n";
     os << "    }\n\n";
@@ -170,15 +179,17 @@ std::string writeUsda(const UsdScene& scene)
     os << "    }\n";
     os << "}\n\n";
 
-    os << "def \"Render\"\n{\n";
-    os << "    def \"Products\"\n    {\n";
+    os << "def Scope \"Render\"\n{\n";
+    os << "    def Scope \"Vars\"\n    {\n";
+    os << "        def RenderVar \"LdrColor\"\n        {\n";
+    os << "            uniform string sourceName = \"LdrColor\"\n";
+    os << "        }\n";
+    os << "    }\n";
+    os << "    def Scope \"Products\"\n    {\n";
     os << "        def RenderProduct \"MainCam\"\n        {\n";
     os << "            rel camera = </World/Camera>\n";
-    os << "            rel orderedVars = [<LdrColor>]\n";
-    os << "            int2 resolution = (" << width << ", " << height << ")\n";
-    os << "            def RenderVar \"LdrColor\"\n            {\n";
-    os << "                string sourceName = \"LdrColor\"\n";
-    os << "            }\n";
+    os << "            rel orderedVars = </Render/Vars/LdrColor>\n";
+    os << "            uniform int2 resolution = (" << width << ", " << height << ")\n";
     os << "        }\n";
     os << "    }\n";
     os << "}\n";

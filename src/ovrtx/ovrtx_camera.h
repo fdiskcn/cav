@@ -18,6 +18,7 @@ inline constexpr float kUsdHorizontalApertureMm = 20.955f;
 
 float horizontalFovDegrees(float fovYDegrees, float aspect);
 float focalLengthMm(float fovYDegrees, float aspect, float horizontalApertureMm = kUsdHorizontalApertureMm);
+float verticalApertureMm(float aspect, float horizontalApertureMm = kUsdHorizontalApertureMm);
 
 } // namespace Ovrtx
 } // namespace Mayo

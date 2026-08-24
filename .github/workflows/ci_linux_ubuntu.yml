@@ -42,7 +42,8 @@ jobs:
         cd ${{github.workspace}}/build
         cmake .. \
           -DMayo_BuildTests=ON \
-          -DMayo_BuildPluginAssimp=ON
+          -DMayo_BuildPluginAssimp=ON \
+          -DMayo_UseOvrtx=OFF
         cmake --build . --config Release --parallel
 
     - name: Execute Unit Tests
