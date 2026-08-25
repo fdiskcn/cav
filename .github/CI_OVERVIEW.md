@@ -1,8 +1,9 @@
+# 持续集成
 
-   OS    |  Status
----------|---------------------------------------------------
- Linux   | [![Linux Arch x64](https://github.com/fougue/mayo/actions/workflows/ci_linux_arch.yml/badge.svg)](https://github.com/fougue/mayo/actions/workflows/ci_linux_arch.yml)<br>[![Linux Fedora x64](https://github.com/fougue/mayo/actions/workflows/ci_linux_fedora.yml/badge.svg)](https://github.com/fougue/mayo/actions/workflows/ci_linux_fedora.yml)<br>[![Linux Ubuntu armv7](https://github.com/fougue/mayo/actions/workflows/ci_linux_ubuntu_armv7.yml/badge.svg)](https://github.com/fougue/mayo/actions/workflows/ci_linux_ubuntu_armv7.yml)<br>[![Linux Ubuntu x64/arm64](https://github.com/fougue/mayo/actions/workflows/ci_linux_ubuntu.yml/badge.svg)](https://github.com/fougue/mayo/actions/workflows/ci_linux_ubuntu.yml)	 
- macOS   | [![macOS arm64](https://github.com/fougue/mayo/actions/workflows/ci_macos.yml/badge.svg)](https://github.com/fougue/mayo/actions/workflows/ci_macos.yml)<br>[![macOS-conda arm64](https://github.com/fougue/mayo/actions/workflows/ci_macos_conda.yml/badge.svg)](https://github.com/fougue/mayo/actions/workflows/ci_macos_conda.yml)
- Windows | [![Windows x64](https://github.com/fougue/mayo/actions/workflows/ci_windows.yml/badge.svg)](https://github.com/fougue/mayo/actions/workflows/ci_windows.yml)
- Sonar   | [![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=fougue_mayo&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=fougue_mayo)<br>[![Bugs](https://sonarcloud.io/api/project_badges/measure?project=fougue_mayo&metric=bugs)](https://sonarcloud.io/summary/new_code?id=fougue_mayo)<br>[![Code Smells](https://sonarcloud.io/api/project_badges/measure?project=fougue_mayo&metric=code_smells)](https://sonarcloud.io/summary/new_code?id=fougue_mayo)<br>[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=fougue_mayo&metric=coverage)](https://sonarcloud.io/summary/new_code?id=fougue_mayo)<br>[![Duplicated Lines (%)](https://sonarcloud.io/api/project_badges/measure?project=fougue_mayo&metric=duplicated_lines_density)](https://sonarcloud.io/summary/new_code?id=fougue_mayo)
- 
+| 工作流 | 说明 |
+|--------|------|
+| [Environments](https://github.com/fdiskcn/cav/actions/workflows/ci_environments.yml) | `macos-gl` / `linux-gl` / `linux-nvidia-rtx` / `windows-gl` / `windows-nvidia-rtx` / `usd-tests`，不要求 GPU |
+| `ci_linux_*.yml`、`ci_macos*.yml`、`ci_windows.yml` | 上游 Mayo 发行矩阵，固定 `Mayo_GpuBackend=opengl` |
+| `sonar.yml` | Sonar 扫描 |
+
+nvidia-rtx 作业只验证编译与单测：无 GPU 时 `test-ovrtx-engine` 允许 initialize 失败，不允许崩溃。

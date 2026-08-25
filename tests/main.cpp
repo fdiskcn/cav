@@ -12,8 +12,11 @@
 #include <QtCore/QtDebug>
 #include <QtCore/QTemporaryFile>
 
+#include <Standard_Failure.hxx>
+
 #include <cstring>
 #include <memory>
+#include <new>
 #include <vector>
 
 namespace {
@@ -77,9 +80,9 @@ int main(int argc, char* argv[])
     std::vector<std::unique_ptr<QObject>> vecTest;
     vecTest.emplace_back(new Mayo::TestBase);
     vecTest.emplace_back(new Mayo::TestIO);
-    vecTest.emplace_back(new Mayo::TestGraphics);
     vecTest.emplace_back(new Mayo::TestMeasure);
     vecTest.emplace_back(new Mayo::TestApp);
+    vecTest.emplace_back(new Mayo::TestGraphics);
 
     // Execute unit tests
     //     As QText::qExec() is called for each test object, it would overwrite any output file
@@ -93,8 +96,29 @@ int main(int argc, char* argv[])
         if (ptrArgOutputFileName)
             *ptrArgOutputFileName = outputTestFileName + argOutputFile.format;
 
-        // Execute test
-        retcode += QTest::qExec(test.get(), args);
+        try {
+            retcode += QTest::qExec(test.get(), args);
+        }
+        catch (const std::bad_alloc&) {
+            qCritical("std::bad_alloc while running %s", test->metaObject()->className());
+            ++retcode;
+        }
+        catch (const Standard_Failure& err) {
+            qCritical(
+                "OCCT failure while running %s: %s",
+                test->metaObject()->className(),
+                err.GetMessageString()
+            );
+            ++retcode;
+        }
+        catch (const std::exception& err) {
+            qCritical(
+                "exception while running %s: %s",
+                test->metaObject()->className(),
+                err.what()
+            );
+            ++retcode;
+        }
 
         // Append the temporary file to the target output file
         if (ptrArgOutputFileName) {

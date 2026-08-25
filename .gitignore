@@ -1,4 +1,8 @@
 build-*
+/build/
+/dist/
+.mayo-env-current
+CMakeUserPresets.json
 *.user
 *.user.*
 custom.pri

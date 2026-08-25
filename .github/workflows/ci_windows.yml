@@ -103,6 +103,7 @@ jobs:
           -DMayo_EnablePch=${{matrix.pch}} ^
           -DMayo_BuildTests=ON ^
           -DMayo_BuildPluginAssimp=ON ^
+          -DMayo_GpuBackend=opengl ^
           -DMayo_UseOvrtx=OFF ^
           -DMayo_PostBuildCopyRuntimeDLLs=ON ^
           -DOpenCASCADE_DIR=${{github.workspace}}/OpenCASCADE-%occ_version%-vc14-64/opencascade-%occ_version% ^
