@@ -43,6 +43,7 @@ jobs:
         cmake .. \
           -DMayo_BuildTests=ON \
           -DMayo_BuildPluginAssimp=ON \
+          -DMayo_GpuBackend=opengl \
           -DMayo_UseOvrtx=OFF
         cmake --build . --config Release --parallel
 

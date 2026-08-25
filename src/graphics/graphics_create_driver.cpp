@@ -13,16 +13,41 @@
 
 #include <Aspect_DisplayConnection.hxx>
 #include <OpenGl_GraphicDriver.hxx>
+#include <Standard_Failure.hxx>
+#include <cstdlib>
 #include <functional>
+#include <new>
 
 namespace Mayo {
 
 using FunctionCreateGraphicsDriver = std::function<OccHandle<Graphic3d_GraphicDriver>()>;
 
+static bool delayOpenGlDriverInit()
+{
+    // Software GL: delay the dummy GLX window; QOpenGLWidget initializes later.
+    const char* soft = std::getenv("LIBGL_ALWAYS_SOFTWARE");
+    return soft && soft[0] == '1';
+}
+
 static FunctionCreateGraphicsDriver& getFunctionCreateGraphicsDriver()
 {
     static FunctionCreateGraphicsDriver fn = []{
-        return makeOccHandle<OpenGl_GraphicDriver>(new Aspect_DisplayConnection);
+        try {
+            auto disp = makeOccHandle<Aspect_DisplayConnection>();
+            const bool delayInit = delayOpenGlDriverInit();
+            auto driver = makeOccHandle<OpenGl_GraphicDriver>(disp, !delayInit);
+            if (delayInit) {
+                driver->ChangeOptions().buffersNoSwap = true;
+                driver->ChangeOptions().swapInterval = 0;
+            }
+            return OccHandle<Graphic3d_GraphicDriver>(driver);
+        }
+        catch (const Standard_Failure&) {
+            return OccHandle<Graphic3d_GraphicDriver>();
+        }
+        catch (const std::bad_alloc&) {
+            return OccHandle<Graphic3d_GraphicDriver>();
+        }
     };
     return fn;
 }

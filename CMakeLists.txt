@@ -87,31 +87,7 @@ endif()
 
 option(Mayo_BuildApp "Build Mayo GUI application" ON)
 option(Mayo_BuildConvCli "Build Mayo CLI converter" ON)
-# NVIDIA ovrtx currently ships Windows and Linux x86_64/aarch64 packages only.
-set(Mayo_OvrtxPlatformSupported OFF)
-if(WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8)
-    set(Mayo_OvrtxPlatformSupported ON)
-elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|amd64|AMD64|aarch64|arm64")
-    set(Mayo_OvrtxPlatformSupported ON)
-endif()
-
-option(
-    Mayo_UseOvrtx
-    "Replace the built-in OCCT OpenGL viewport with NVIDIA ovrtx (downloads the ovrtx/ovstage SDK)"
-    ${Mayo_OvrtxPlatformSupported}
-)
-if(Mayo_UseOvrtx AND NOT Mayo_OvrtxPlatformSupported)
-    message(WARNING
-        "Mayo_UseOvrtx=ON is not supported on ${CMAKE_SYSTEM_NAME} ${CMAKE_SYSTEM_PROCESSOR}. "
-        "NVIDIA ovrtx packages exist for Windows/Linux x86_64 and aarch64 only. "
-        "Falling back to the OCCT OpenGL viewport."
-    )
-    set(Mayo_UseOvrtx OFF CACHE BOOL
-        "Replace the built-in OCCT OpenGL viewport with NVIDIA ovrtx (downloads the ovrtx/ovstage SDK)"
-        FORCE
-    )
-endif()
-message(STATUS "Mayo_UseOvrtx=${Mayo_UseOvrtx} (platform_supported=${Mayo_OvrtxPlatformSupported})")
+include(mayo_env)
 
 if(MSVC)
     option(Mayo_EnablePch "Enable precompiled headers" OFF)
@@ -489,13 +465,15 @@ endif()
 # NVIDIA ovrtx / ovstage (optional viewport renderer)
 ##########
 
-if(Mayo_UseOvrtx AND Mayo_BuildApp)
+if(Mayo_UseOvrtx AND (Mayo_BuildApp OR Mayo_BuildTests))
     include(${PROJECT_SOURCE_DIR}/cmake/ovrtx.cmake)
     include(${PROJECT_SOURCE_DIR}/cmake/ovstage.cmake)
     ovrtx_fetch()
     ovstage_fetch()
-    set(MAYO_HAVE_OVRTX 1)
-    message(STATUS "3D viewport will use NVIDIA ovrtx instead of OCCT OpenGL")
+    if(Mayo_BuildApp)
+        set(MAYO_HAVE_OVRTX 1)
+        message(STATUS "3D viewport will use NVIDIA ovrtx instead of OCCT OpenGL")
+    endif()
 endif()
 
 ##########
@@ -800,6 +778,27 @@ target_include_directories(test-ovrtx-usd PRIVATE ${PROJECT_SOURCE_DIR}/src/ovrt
 set_target_properties(test-ovrtx-usd PROPERTIES WIN32_EXECUTABLE FALSE)
 enable_testing()
 add_test(NAME test-ovrtx-usd COMMAND test-ovrtx-usd)
+set_tests_properties(test-ovrtx-usd PROPERTIES TIMEOUT 60)
+
+if(Mayo_UseOvrtx AND Mayo_BuildTests)
+    add_executable(
+        test-ovrtx-engine
+        ${PROJECT_SOURCE_DIR}/src/ovrtx/ovrtx_engine.cpp
+        ${PROJECT_SOURCE_DIR}/src/ovrtx/ovrtx_camera.cpp
+        ${PROJECT_SOURCE_DIR}/src/ovrtx/ovrtx_usd_types.cpp
+        ${PROJECT_SOURCE_DIR}/src/ovrtx/ovrtx_usd_writer.cpp
+        ${PROJECT_SOURCE_DIR}/tests/ovrtx/test_ovrtx_engine.cpp
+    )
+    target_include_directories(test-ovrtx-engine PRIVATE ${PROJECT_SOURCE_DIR}/src/ovrtx)
+    target_compile_definitions(test-ovrtx-engine PRIVATE ${Mayo_CompileDefinitions})
+    target_compile_options(test-ovrtx-engine PRIVATE ${Mayo_CompileOptions})
+    target_link_libraries(test-ovrtx-engine PRIVATE ovrtx::ovrtx_static ovstage::ovstage_static)
+    ovrtx_setup_runtime(test-ovrtx-engine)
+    ovstage_setup_runtime(test-ovrtx-engine)
+    set_target_properties(test-ovrtx-engine PROPERTIES WIN32_EXECUTABLE FALSE)
+    add_test(NAME test-ovrtx-engine COMMAND test-ovrtx-engine)
+    set_tests_properties(test-ovrtx-engine PROPERTIES TIMEOUT 60)
+endif()
 
 ##########
 # Target: test-mayo
@@ -853,6 +852,7 @@ if(Mayo_BuildTests)
     file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/tests/outputs)
 
     add_test(NAME test-mayo COMMAND test-mayo)
+    set_tests_properties(test-mayo PROPERTIES TIMEOUT 600)
 endif()
 
 ##########
@@ -877,6 +877,13 @@ if(Mayo_UseOvrtx AND Mayo_BuildApp)
         install(DIRECTORY "${OVSTAGE_BINARY_DIR}/" DESTINATION "${CMAKE_INSTALL_BINDIR}/ovstage")
     endif()
 endif()
+mayo_install_environment_file()
+
+##########
+# Packaging (cpack) — file name encodes platform × GPU
+##########
+
+mayo_setup_packaging()
 
 ##########
 # Target: OtherFiles
@@ -894,13 +901,21 @@ add_custom_target(
     .github/workflows/ci_macos.yml
     .github/workflows/ci_macos_conda.yml
     .github/workflows/ci_ovrtx_usd.yml
+    .github/workflows/ci_environments.yml
     .github/workflows/ci_windows.yml
     .github/workflows/sonar.yml
+    docker/linux-env.Dockerfile
+    docker/entrypoint.sh
     images/credits.txt
     scripts/bump-version.rb
     scripts/gen-cmake-opencascade-vars.bat
+    scripts/mayo-env
+    scripts/mayo-env.cmd
+    scripts/mayo-env.py
     cmake/mayo_config.h.in
+    cmake/mayo_env.cmake
     cmake/mayo_version.h.in
+    CMakePresets.json
     LICENSE.txt
     README.md
 )

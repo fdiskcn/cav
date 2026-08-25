@@ -45,6 +45,7 @@ private:
     QImage m_frame;
     QString m_status;
     bool m_sceneDirty = true;
+    bool m_occWindowFailed = false;
     uint64_t m_lastDigest = 0;
     int m_lastWidth = 0;
     int m_lastHeight = 0;

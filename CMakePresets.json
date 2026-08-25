@@ -1,0 +1,244 @@
+{
+    "version": 3,
+    "cmakeMinimumRequired": {
+        "major": 3,
+        "minor": 21,
+        "patch": 0
+    },
+    "configurePresets": [
+        {
+            "name": "base",
+            "hidden": true,
+            "binaryDir": "${sourceDir}/build/${presetName}",
+            "cacheVariables": {
+                "Mayo_BuildApp": "ON",
+                "Mayo_BuildConvCli": "ON",
+                "Mayo_BuildTests": "ON",
+                "CMAKE_INSTALL_PREFIX": "${sourceDir}/dist/${presetName}"
+            }
+        },
+        {
+            "name": "unix-release",
+            "hidden": true,
+            "inherits": "base",
+            "generator": "Unix Makefiles",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Release"
+            },
+            "condition": {
+                "type": "inList",
+                "string": "${hostSystemName}",
+                "list": ["Linux", "Darwin"]
+            }
+        },
+        {
+            "name": "unix-debug",
+            "hidden": true,
+            "inherits": "unix-release",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug"
+            }
+        },
+        {
+            "name": "windows-release",
+            "hidden": true,
+            "inherits": "base",
+            "generator": "Visual Studio 17 2022",
+            "architecture": "x64",
+            "condition": {
+                "type": "equals",
+                "lhs": "${hostSystemName}",
+                "rhs": "Windows"
+            }
+        },
+
+        {
+            "name": "macos-gl",
+            "displayName": "macOS · OpenGL",
+            "description": "macOS + Apple/AMD/Intel GPU. OCCT OpenGL viewport. ovrtx has no macOS package.",
+            "inherits": "unix-release",
+            "cacheVariables": {
+                "Mayo_GpuBackend": "opengl",
+                "Mayo_UseOvrtx": "OFF"
+            },
+            "condition": {
+                "type": "equals",
+                "lhs": "${hostSystemName}",
+                "rhs": "Darwin"
+            }
+        },
+        {
+            "name": "macos-gl-debug",
+            "displayName": "macOS · OpenGL (Debug)",
+            "description": "macOS OpenGL viewport, Debug build.",
+            "inherits": "unix-debug",
+            "cacheVariables": {
+                "Mayo_GpuBackend": "opengl",
+                "Mayo_UseOvrtx": "OFF"
+            },
+            "condition": {
+                "type": "equals",
+                "lhs": "${hostSystemName}",
+                "rhs": "Darwin"
+            }
+        },
+
+        {
+            "name": "linux-gl",
+            "displayName": "Linux · OpenGL",
+            "description": "Linux + AMD/Intel/NVIDIA/Mesa via OCCT OpenGL. Does not download the ovrtx SDK.",
+            "inherits": "unix-release",
+            "cacheVariables": {
+                "Mayo_GpuBackend": "opengl",
+                "Mayo_UseOvrtx": "OFF"
+            },
+            "condition": {
+                "type": "equals",
+                "lhs": "${hostSystemName}",
+                "rhs": "Linux"
+            }
+        },
+        {
+            "name": "linux-gl-debug",
+            "displayName": "Linux · OpenGL (Debug)",
+            "description": "Linux OpenGL viewport, Debug build.",
+            "inherits": "unix-debug",
+            "cacheVariables": {
+                "Mayo_GpuBackend": "opengl",
+                "Mayo_UseOvrtx": "OFF"
+            },
+            "condition": {
+                "type": "equals",
+                "lhs": "${hostSystemName}",
+                "rhs": "Linux"
+            }
+        },
+        {
+            "name": "linux-nvidia-rtx",
+            "displayName": "Linux · NVIDIA RTX",
+            "description": "Linux x86_64 or aarch64 + NVIDIA RTX. Downloads ovrtx/ovstage and uses the RTX viewport.",
+            "inherits": "unix-release",
+            "cacheVariables": {
+                "Mayo_GpuBackend": "nvidia-rtx",
+                "Mayo_UseOvrtx": "ON"
+            },
+            "condition": {
+                "type": "equals",
+                "lhs": "${hostSystemName}",
+                "rhs": "Linux"
+            }
+        },
+        {
+            "name": "linux-nvidia-rtx-debug",
+            "displayName": "Linux · NVIDIA RTX (Debug)",
+            "description": "Linux NVIDIA RTX viewport, Debug build. Downloads the ovrtx SDK.",
+            "inherits": "unix-debug",
+            "cacheVariables": {
+                "Mayo_GpuBackend": "nvidia-rtx",
+                "Mayo_UseOvrtx": "ON"
+            },
+            "condition": {
+                "type": "equals",
+                "lhs": "${hostSystemName}",
+                "rhs": "Linux"
+            }
+        },
+
+        {
+            "name": "windows-gl",
+            "displayName": "Windows · OpenGL",
+            "description": "Windows x64 + AMD/Intel/NVIDIA via OCCT OpenGL. Does not download the ovrtx SDK.",
+            "inherits": "windows-release",
+            "cacheVariables": {
+                "Mayo_GpuBackend": "opengl",
+                "Mayo_UseOvrtx": "OFF"
+            },
+            "condition": {
+                "type": "equals",
+                "lhs": "${hostSystemName}",
+                "rhs": "Windows"
+            }
+        },
+        {
+            "name": "windows-gl-debug",
+            "displayName": "Windows · OpenGL (Debug)",
+            "description": "Windows OpenGL viewport, Debug configuration.",
+            "inherits": "windows-gl",
+            "condition": {
+                "type": "equals",
+                "lhs": "${hostSystemName}",
+                "rhs": "Windows"
+            }
+        },
+        {
+            "name": "windows-nvidia-rtx",
+            "displayName": "Windows · NVIDIA RTX",
+            "description": "Windows x64 + NVIDIA RTX. Downloads ovrtx/ovstage and uses the RTX viewport.",
+            "inherits": "windows-release",
+            "cacheVariables": {
+                "Mayo_GpuBackend": "nvidia-rtx",
+                "Mayo_UseOvrtx": "ON"
+            },
+            "condition": {
+                "type": "equals",
+                "lhs": "${hostSystemName}",
+                "rhs": "Windows"
+            }
+        },
+        {
+            "name": "windows-nvidia-rtx-debug",
+            "displayName": "Windows · NVIDIA RTX (Debug)",
+            "description": "Windows NVIDIA RTX viewport, Debug configuration. Downloads the ovrtx SDK.",
+            "inherits": "windows-nvidia-rtx",
+            "condition": {
+                "type": "equals",
+                "lhs": "${hostSystemName}",
+                "rhs": "Windows"
+            }
+        }
+    ],
+    "buildPresets": [
+        { "name": "macos-gl", "configurePreset": "macos-gl", "configuration": "Release" },
+        { "name": "macos-gl-debug", "configurePreset": "macos-gl-debug", "configuration": "Debug" },
+        { "name": "linux-gl", "configurePreset": "linux-gl", "configuration": "Release" },
+        { "name": "linux-gl-debug", "configurePreset": "linux-gl-debug", "configuration": "Debug" },
+        { "name": "linux-nvidia-rtx", "configurePreset": "linux-nvidia-rtx", "configuration": "Release" },
+        { "name": "linux-nvidia-rtx-debug", "configurePreset": "linux-nvidia-rtx-debug", "configuration": "Debug" },
+        { "name": "windows-gl", "configurePreset": "windows-gl", "configuration": "Release" },
+        { "name": "windows-gl-debug", "configurePreset": "windows-gl-debug", "configuration": "Debug" },
+        { "name": "windows-nvidia-rtx", "configurePreset": "windows-nvidia-rtx", "configuration": "Release" },
+        { "name": "windows-nvidia-rtx-debug", "configurePreset": "windows-nvidia-rtx-debug", "configuration": "Debug" }
+    ],
+    "testPresets": [
+        {
+            "name": "macos-gl",
+            "configurePreset": "macos-gl",
+            "configuration": "Release",
+            "output": { "outputOnFailure": true }
+        },
+        {
+            "name": "linux-gl",
+            "configurePreset": "linux-gl",
+            "configuration": "Release",
+            "output": { "outputOnFailure": true }
+        },
+        {
+            "name": "linux-nvidia-rtx",
+            "configurePreset": "linux-nvidia-rtx",
+            "configuration": "Release",
+            "output": { "outputOnFailure": true }
+        },
+        {
+            "name": "windows-gl",
+            "configurePreset": "windows-gl",
+            "configuration": "Release",
+            "output": { "outputOnFailure": true }
+        },
+        {
+            "name": "windows-nvidia-rtx",
+            "configurePreset": "windows-nvidia-rtx",
+            "configuration": "Release",
+            "output": { "outputOnFailure": true }
+        }
+    ]
+}

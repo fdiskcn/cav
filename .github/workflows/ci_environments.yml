@@ -1,0 +1,152 @@
+name: Environments (no CUDA)
+
+# Build and test every Mayo environment without requiring an NVIDIA GPU.
+# nvidia-rtx jobs compile and unit-test the ovrtx path; they do not render RTX pixels.
+
+on: [push, pull_request]
+
+jobs:
+  usd-tests:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    name: usd-tests-${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Test USD pipeline
+        run: python scripts/mayo-env.py test usd-tests --native
+
+  macos-gl:
+    runs-on: macos-latest
+    name: macos-gl
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install Qt and OpenCascade
+        run: brew install qt@6 opencascade
+      - name: Build and test
+        run: |
+          export CMAKE_PREFIX_PATH="$(brew --prefix qt@6);$(brew --prefix opencascade);$CMAKE_PREFIX_PATH"
+          python3 scripts/mayo-env.py test macos-gl --native
+
+  linux-gl:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.os }}
+    name: linux-gl-${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install packages
+        run: |
+          sudo apt-get update -y
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            python3 cmake ninja-build g++ pkg-config xvfb locales \
+            qt6-base-dev qt6-svg-dev qt6-qpa-plugins libxcb-cursor0 \
+            libgl1-mesa-dev libgl1-mesa-dri \
+            libocct-data-exchange-dev libocct-draw-dev occt-misc \
+            libtbb-dev libxi-dev libassimp-dev
+          echo "fr_FR ISO-8859-15" | sudo tee -a /etc/locale.gen
+          sudo locale-gen
+      - name: Build and test
+        env:
+          CMAKE_BUILD_PARALLEL_LEVEL: "2"
+        run: python3 scripts/mayo-env.py test linux-gl --native
+
+  linux-nvidia-rtx:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.os }}
+    name: linux-nvidia-rtx-nocuda-${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install packages
+        run: |
+          sudo apt-get update -y
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            python3 cmake ninja-build g++ pkg-config xvfb locales \
+            qt6-base-dev qt6-svg-dev qt6-qpa-plugins libxcb-cursor0 \
+            libgl1-mesa-dev libgl1-mesa-dri \
+            libocct-data-exchange-dev libocct-draw-dev occt-misc \
+            libtbb-dev libxi-dev libassimp-dev
+          echo "fr_FR ISO-8859-15" | sudo tee -a /etc/locale.gen
+          sudo locale-gen
+      - name: Cache ovrtx/ovstage SDK
+        uses: actions/cache@v4
+        with:
+          path: cmake/_deps
+          key: ovrtx-linux-${{ runner.arch }}-0.4.1-0.1.1
+      - name: Build and test ovrtx without CUDA
+        env:
+          CMAKE_BUILD_PARALLEL_LEVEL: "2"
+        run: python3 scripts/mayo-env.py test linux-nvidia-rtx --native
+
+  windows-gl:
+    runs-on: windows-latest
+    name: windows-gl
+    steps:
+      - uses: actions/checkout@v7
+      - uses: jurplel/install-qt-action@v4
+        with:
+          cache: true
+          cache-key-prefix: QtCacheEnv
+      - name: Cache OpenCascade
+        id: cache-occ
+        uses: actions/cache@v4
+        with:
+          path: OpenCASCADE-7.9.0-vc14-64.zip
+          key: occ-7.9.0-env
+      - name: Download OpenCascade
+        if: steps.cache-occ.outputs.cache-hit != 'true'
+        uses: carlosperate/download-file-action@v2
+        with:
+          file-url: 'https://www.fougue.pro/share/bin/OpenCASCADE-7.9.0-vc14-64.zip'
+          sha256: e3ec8adea37dd519d6580e3dd1288625c2b0dccbd811c9348c4b138ff9938d32
+      - name: Extract OpenCascade
+        run: 7z x OpenCASCADE-7.9.0-vc14-64.zip
+      - uses: ilammy/msvc-dev-cmd@v1
+      - name: Build and test
+        env:
+          OpenCASCADE_DIR: ${{ github.workspace }}/OpenCASCADE-7.9.0-vc14-64/opencascade-7.9.0
+        run: python scripts/mayo-env.py test windows-gl --native
+
+  windows-nvidia-rtx:
+    runs-on: windows-latest
+    name: windows-nvidia-rtx-nocuda
+    steps:
+      - uses: actions/checkout@v7
+      - uses: jurplel/install-qt-action@v4
+        with:
+          cache: true
+          cache-key-prefix: QtCacheEnv
+      - name: Cache OpenCascade
+        id: cache-occ
+        uses: actions/cache@v4
+        with:
+          path: OpenCASCADE-7.9.0-vc14-64.zip
+          key: occ-7.9.0-env
+      - name: Download OpenCascade
+        if: steps.cache-occ.outputs.cache-hit != 'true'
+        uses: carlosperate/download-file-action@v2
+        with:
+          file-url: 'https://www.fougue.pro/share/bin/OpenCASCADE-7.9.0-vc14-64.zip'
+          sha256: e3ec8adea37dd519d6580e3dd1288625c2b0dccbd811c9348c4b138ff9938d32
+      - name: Extract OpenCascade
+        run: 7z x OpenCASCADE-7.9.0-vc14-64.zip
+      - name: Cache ovrtx/ovstage SDK
+        uses: actions/cache@v4
+        with:
+          path: cmake/_deps
+          key: ovrtx-windows-x64-0.4.1-0.1.1
+      - uses: ilammy/msvc-dev-cmd@v1
+      - name: Build and test ovrtx without CUDA
+        env:
+          OpenCASCADE_DIR: ${{ github.workspace }}/OpenCASCADE-7.9.0-vc14-64/opencascade-7.9.0
+        run: python scripts/mayo-env.py test windows-nvidia-rtx --native

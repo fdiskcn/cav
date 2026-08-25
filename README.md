@@ -1,6 +1,73 @@
 # Mayo + NVIDIA ovrtx
 
-本仓库在 [Mayo](https://github.com/fougue/mayo) 之上，把视口里的 **OCCT OpenGL 渲染器**换成 [NVIDIA ovrtx](https://github.com/nvidia-omniverse/ovrtx)（Omniverse RTX 嵌入式 SDK）。CAD 导入、文档树、测量、以及基于 `V3d_View` 的相机导航仍由 Mayo / OpenCascade 负责；屏幕上的像素来自 ovrtx 的 `LdrColor` AOV。
+[Mayo](https://github.com/fougue/mayo) CAD 查看器。可选把视口从 OCCT OpenGL 换成 [NVIDIA ovrtx](https://github.com/nvidia-omniverse/ovrtx)。导入、文档树、测量和相机仍由 Mayo / OpenCascade 负责；**NVIDIA RTX** 环境下屏幕像素来自 ovrtx 的 `LdrColor` AOV。
+
+## 环境
+
+先选环境，再配置、编译、测试、打包。环境 id 同时表示操作系统和视口后端。
+
+| 环境 | 平台 | 视口 |
+|------|------|------|
+| `macos-gl` | macOS (arm64 / x64) | OCCT OpenGL（ovrtx 无 macOS 包） |
+| `linux-gl` | Linux (x64 / arm64) | OCCT OpenGL |
+| `linux-nvidia-rtx` | Linux (x64 / arm64) | NVIDIA ovrtx |
+| `windows-gl` | Windows x64 | OCCT OpenGL |
+| `windows-nvidia-rtx` | Windows x64 | NVIDIA ovrtx |
+| `usd-tests` | 任意 | 无（仅 USDA 管线单测，不打包） |
+
+NVIDIA RTX 环境在没有 GPU / CUDA 时仍可配置、编译、跑单测和打包。运行时视口显示错误文案，进程不崩溃。出图需要 NVIDIA 驱动。QEMU 与 Apple GPU 不能代替 RTX 像素。
+
+```bash
+python3 scripts/mayo-env.py list
+python3 scripts/mayo-env.py suggest
+python3 scripts/mayo-env.py all macos-gl
+```
+
+Windows：
+
+```bat
+python scripts\mayo-env.py all windows-gl
+python scripts\mayo-env.py all windows-nvidia-rtx
+```
+
+Linux 环境可在 macOS / Windows 上通过 Docker 构建测试（`docker/linux-env.Dockerfile`）。
+
+产物：
+
+- 安装目录：`dist/<环境>/`
+- 归档：`dist/mayo-<版本>-<os>-<arch>-<opengl|nvidia-rtx>.tar.gz`（Windows 为 `.zip`）
+- 包内 `share/mayo/MAYO_ENVIRONMENT.txt` 记录当时的平台与显卡选型
+
+CMake Preset（CMake ≥ 3.21）：
+
+```bash
+cmake --list-presets
+cmake --preset macos-gl
+cmake --build --preset macos-gl
+```
+
+手动开关：
+
+```bash
+cmake -S . -B build -DMayo_GpuBackend=opengl
+cmake -S . -B build -DMayo_GpuBackend=nvidia-rtx   # Windows / Linux x64 或 arm64
+```
+
+`Mayo_UseOvrtx` 仍可用；与 `Mayo_GpuBackend` 同时给出时以 GpuBackend 为准。
+
+依赖：CMake ≥ 3.16（preset 需要 ≥ 3.21）、C++17、Qt 5.12+ 或 Qt 6、OpenCascade 7.x。nvidia-rtx 会从 GitHub Releases 拉取 ovrtx / ovstage（`cmake/_deps/`，已 gitignore）。
+
+## 测试
+
+```bash
+python3 scripts/mayo-env.py test usd-tests
+python3 scripts/mayo-env.py platform
+python3 scripts/mayo-env.py platform --only linux-nvidia-rtx
+```
+
+`platform` 构建并测试本机能跑的环境。六个环境的 CI 见 [ci_environments.yml](.github/workflows/ci_environments.yml)，不要求 GPU。无 GPU 的 nvidia-rtx 作业验证编译、`test-mayo`、`test-ovrtx-usd` 和 `test-ovrtx-engine`（initialize 失败但不崩溃）。Docker 默认设置 `MAYO_SKIP_GL_TESTS=1`，跳过依赖硬件 OpenGL 的回归。
+
+RTX 出图：在装有 NVIDIA 驱动的 Windows / Linux 上打开 `tests/inputs/cube.step`。
 
 ## 架构
 
@@ -8,89 +75,20 @@
 STEP/IGES/BREP/… ──► Mayo IO + OCCT 网格
                          │
                          ▼
-              USDA（Y-up，毫米） ──► ovstage ──► ovrtx step
+              USDA（Y-up，毫米） ──► ovstage ──► ovrtx step   ← 仅 nvidia-rtx
                          │                         │
               V3d_View 相机矩阵 ──► ovrtx_set_xform_mat
                                                    ▼
                                         QImage 显示在视口
 ```
 
-- 接入点是 `IWidgetOccView`。`Mayo_UseOvrtx=ON` 时，`initGui()` 把视口工厂设为 `WidgetOvrtxView::create`，不再创建 `QOpenGLWidgetOccView`。
-- OCCT 仍会创建 `Graphic3d_GraphicDriver` 和 `V3d_View`（挂在离屏 `Aspect_NeutralWindow` 上），用于相机、选择和测量；**不会把 OCCT OpenGL 画到屏幕上**。
-- 几何 / 显隐 / 选择 / 正交缩放变化时重写 USDA 并 `ovstage_population_open_usd_from_string`；仅相机运动时走 `ovrtx_set_xform_mat`。
+- `Mayo_GpuBackend=nvidia-rtx` 时，`initGui()` 使用 `WidgetOvrtxView`；`opengl` 时使用原版 OCCT OpenGL 视口。
+- RTX 路径下 OCCT 仍创建离屏 `V3d_View` 做相机和选择，不把 OpenGL 画到屏幕上。
 - 坐标：OCCT Z-up `(x, y, z)` → USD Y-up `(x, z, -y)`。
-- 没有 RTX GPU 或 SDK 运行时失败时，视口显示错误文案，进程不崩溃。
-- NVIDIA ovrtx 目前只提供 **Windows / Linux x86_64 / Linux aarch64** 包。macOS 等平台会自动回退到 OCCT OpenGL，应用仍可运行。
-
-## 构建应用
-
-依赖：
-
-- CMake ≥ 3.16、C++17 编译器
-- Qt 5.12+ 或 Qt 6（Widgets）
-- OpenCascade 7.x
-- **启用 RTX 视口时**：NVIDIA RTX GPU，以及可由 CMake 下载的 ovrtx / ovstage 二进制包
-
-```bash
-cmake -S . -B build -DMayo_UseOvrtx=ON
-cmake --build build --target mayo
-```
-
-首次配置会从 GitHub Releases 拉取 ovrtx / ovstage SDK（体积较大，NVIDIA 专有许可）。包被放在 `cmake/_deps/`（已 gitignore）。
-
-关闭 RTX 视口、回到原版 OCCT OpenGL：
-
-```bash
-cmake -S . -B build -DMayo_UseOvrtx=OFF
-cmake --build build --target mayo
-```
-
-安装（可交付目录）：
-
-```bash
-cmake --install build --prefix /path/to/mayo-ovrtx
-```
-
-`mayo` / `mayo-conv` 会装到 `bin/`。在支持 ovrtx 的平台上，还会把 SDK 运行时装到 `bin/ovrtx/` 与 `bin/ovstage/`，与可执行文件并排，符合静态 loader 的 `${executable_dir}/ovrtx` 约定。
-
-## 测试
-
-### 不依赖 GPU 的 USD 管线
-
-本环境没有 NVIDIA GPU / Qt / OCCT 时，仍可验证网格→USDA、look-at 矩阵、Z-up 转换和 RenderProduct 结构：
-
-```bash
-cmake -S tests/ovrtx -B build-ovrtx-usd -DCMAKE_CXX_COMPILER=g++
-cmake --build build-ovrtx-usd
-ctest --test-dir build-ovrtx-usd --output-on-failure
-```
-
-若默认 `c++` 是 clang 且链接时报找不到 `-lstdc++`，请像上面一样显式指定 `g++`。
-
-完整 Mayo 工程在配置成功后也会生成 `test-ovrtx-usd` 目标。CI 工作流 `.github/workflows/ci_ovrtx_usd.yml` 只跑这一套测试。
-
-### Mayo 原有单元测试
-
-```bash
-cmake -S . -B build -DMayo_BuildTests=ON -DMayo_UseOvrtx=OFF
-cmake --build build --target test-mayo
-ctest --test-dir build -R test-mayo --output-on-failure
-```
-
-上游 Linux / Windows / macOS CI 继续用 `Mayo_UseOvrtx=OFF` 构建，避免在无 GPU 的 runner 上下载专有 SDK。
-
-### RTX 视口（需要 NVIDIA GPU）
-
-在 Windows 或 Linux 工作站上：
-
-1. 用 `Mayo_UseOvrtx=ON` 构建 `mayo`
-2. 运行 `mayo`，打开 `tests/inputs/cube.step`（或任意 STEP/IGES/BREP）
-3. 旋转 / 平移 / 缩放视口，确认画面来自 RTX 而不是 OCCT OpenGL
-4. 无 GPU 时应看到错误文案而不是崩溃
 
 ## 已知限制
 
-相对原版 Mayo OpenGL 视口，RTX 路径目前不把下列 AIS 叠加层编进 USD：测量标注、网格、裁剪平面手柄、ViewCube。选择高亮与装配爆炸会同步到网格颜色 / 变换。
+相对原版 OpenGL 视口，RTX 路径目前不把测量标注、网格、裁剪平面手柄、ViewCube 编进 USD。选择高亮与装配爆炸会同步到网格颜色 / 变换。
 
 ## 许可
 

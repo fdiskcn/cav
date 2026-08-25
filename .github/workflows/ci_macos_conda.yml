@@ -47,6 +47,7 @@ jobs:
         cmake .. \
           -DMayo_BuildTests=ON \
           -DMayo_BuildPluginAssimp=ON \
+          -DMayo_GpuBackend=opengl \
           -DMayo_UseOvrtx=OFF \
           -DCMAKE_PREFIX_PATH=$CMAKE_PREFIX_PATH
         cmake --build . --config Release --parallel
