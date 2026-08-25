@@ -6,6 +6,7 @@ on:
 
 jobs:
   build-macos-conda:
+    if: github.repository == 'fougue/mayo' || vars.MAYO_UPSTREAM_CI == 'true'
     runs-on: macos-latest
     name: build-macos-qt5
 

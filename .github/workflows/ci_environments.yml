@@ -3,9 +3,44 @@ name: Environments (no CUDA)
 # Build and test every Mayo environment without requiring an NVIDIA GPU.
 # nvidia-rtx jobs compile and unit-test the ovrtx path; they do not render RTX pixels.
 
-on: [push, pull_request]
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: environments-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  actions: write
 
 jobs:
+  reclaim-runners:
+    runs-on: ubuntu-latest
+    name: reclaim-runners
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const keepId = context.runId;
+            for (const status of ['queued', 'in_progress']) {
+              const runs = await github.paginate(
+                github.rest.actions.listWorkflowRunsForRepo,
+                { owner: context.repo.owner, repo: context.repo.repo, status, per_page: 100 }
+              );
+              for (const run of runs) {
+                if (run.id === keepId) continue;
+                core.info(`cancel ${run.name} #${run.run_number} ${run.id}`);
+                await github.rest.actions.cancelWorkflowRun({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  run_id: run.id,
+                }).catch((err) => core.warning(String(err)));
+              }
+            }
+
   usd-tests:
     strategy:
       fail-fast: false
@@ -18,7 +53,11 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - uses: ilammy/msvc-dev-cmd@v1
+        if: runner.os == 'Windows'
       - name: Test USD pipeline
+        env:
+          PYTHONUTF8: "1"
         run: python scripts/mayo-env.py test usd-tests --native
 
   macos-gl:
@@ -115,6 +154,7 @@ jobs:
       - name: Build and test
         env:
           OpenCASCADE_DIR: ${{ github.workspace }}/OpenCASCADE-7.9.0-vc14-64/opencascade-7.9.0
+          PYTHONUTF8: "1"
         run: python scripts/mayo-env.py test windows-gl --native
 
   windows-nvidia-rtx:
@@ -149,4 +189,5 @@ jobs:
       - name: Build and test ovrtx without CUDA
         env:
           OpenCASCADE_DIR: ${{ github.workspace }}/OpenCASCADE-7.9.0-vc14-64/opencascade-7.9.0
+          PYTHONUTF8: "1"
         run: python scripts/mayo-env.py test windows-nvidia-rtx --native

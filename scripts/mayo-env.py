@@ -189,6 +189,19 @@ def cmake_supports_presets():
     return cmake_version_tuple() >= (3, 21, 0)
 
 
+def cmake_build_cmd(target, config, preset=False):
+    """Always pass --config so Visual Studio (multi-config) matches ctest -C."""
+    cmd = [cmake_exe(), "--build"]
+    if preset:
+        cmd += ["--preset", target]
+    else:
+        cmd += [target]
+    cmd += ["--config", config]
+    jobs = os.environ.get("CMAKE_BUILD_PARALLEL_LEVEL")
+    cmd += ["--parallel", jobs] if jobs else ["--parallel"]
+    return cmd
+
+
 def env_by_id(env_id):
     for env in ENVIRONMENTS:
         if env["id"] == env_id:
@@ -275,7 +288,10 @@ def extra_cmake_args(env):
         args.append("-DFETCHCONTENT_BASE_DIR=" + fetch_dir)
     occ = os.environ.get("OpenCASCADE_DIR")
     if occ:
-        args.append("-DOpenCASCADE_DIR=" + occ)
+        args.append("-DOpenCASCADE_DIR=" + occ.replace("\\", "/"))
+    if host_system() == "Windows":
+        # Match Mayo's Windows CI: copy Qt/OCC/ovrtx DLLs next to test exes.
+        args.append("-DMayo_PostBuildCopyRuntimeDLLs=ON")
     if env.get("downloads_sdk"):
         ovrtx = os.environ.get("OVRTX_LOCAL_PACKAGE") or local_sdk_file(OVRTX_ZIP)
         ovstage = os.environ.get("OVSTAGE_LOCAL_PACKAGE") or local_sdk_file(OVSTAGE_ZIP)
@@ -444,9 +460,12 @@ def configure_usd(debug):
         bindir,
         "-DCMAKE_BUILD_TYPE=" + ("Debug" if debug else "Release"),
     ]
-    compiler = shutil.which("g++")
-    if compiler:
-        cmd.append("-DCMAKE_CXX_COMPILER=" + compiler)
+    # Do not force g++ on Windows: GitHub-hosted images may have a stray MinGW
+    # g++ that CMake would then pick instead of MSVC.
+    if host_system() == "Linux":
+        compiler = shutil.which("g++")
+        if compiler:
+            cmd.append("-DCMAKE_CXX_COMPILER=" + compiler)
     run(cmd)
     write_state("usd-tests", debug)
     return bindir
@@ -498,21 +517,17 @@ def cmd_build(args):
         return
     env, debug = resolve_env(args)
     name = preset_name(env, debug)
-    cmake = cmake_exe()
     if env.get("special") == "usd":
         configure_usd(debug)
-        jobs = os.environ.get("CMAKE_BUILD_PARALLEL_LEVEL")
-        parallel = ["--parallel"] if not jobs else ["--parallel", jobs]
-        run([cmake, "--build", os.path.join(ROOT, "build", "usd-tests")] + parallel)
+        config = "Debug" if debug else "Release"
+        run(cmake_build_cmd(os.path.join(ROOT, "build", "usd-tests"), config))
         return
     configure_app(env, debug)
     config = "Debug" if debug else "Release"
-    jobs = os.environ.get("CMAKE_BUILD_PARALLEL_LEVEL")
-    parallel = ["--parallel"] if not jobs else ["--parallel", jobs]
     if cmake_supports_presets():
-        run([cmake, "--build", "--preset", name] + parallel)
+        run(cmake_build_cmd(name, config, preset=True))
     else:
-        run([cmake, "--build", bindir_for(env, debug), "--config", config] + parallel)
+        run(cmake_build_cmd(bindir_for(env, debug), config))
 
 
 def cmd_test(args):

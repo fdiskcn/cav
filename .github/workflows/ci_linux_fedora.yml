@@ -6,6 +6,7 @@ on:
 
 jobs:
   build-fedora:
+    if: github.repository == 'fougue/mayo' || vars.MAYO_UPSTREAM_CI == 'true'
     runs-on: ubuntu-latest
     name: build-fedora40-qt5
 

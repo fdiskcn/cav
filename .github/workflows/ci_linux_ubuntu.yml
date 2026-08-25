@@ -2,8 +2,13 @@ name: Linux Ubuntu x64/arm64
 
 on: [push, pull_request]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build-ubuntu:
+    if: github.repository == 'fougue/mayo' || vars.MAYO_UPSTREAM_CI == 'true'
     strategy:
       matrix:
         qt_version_major: [5, 6]

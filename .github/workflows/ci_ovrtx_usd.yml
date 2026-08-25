@@ -2,8 +2,13 @@ name: ovrtx USD tests
 
 on: [push, pull_request]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   usd:
+    if: github.repository == 'fougue/mayo' || vars.MAYO_UPSTREAM_CI == 'true'
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest]

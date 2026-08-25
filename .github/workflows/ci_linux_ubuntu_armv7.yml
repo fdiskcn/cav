@@ -6,6 +6,7 @@ on:
 
 jobs:
   build-ubuntu:
+    if: github.repository == 'fougue/mayo' || vars.MAYO_UPSTREAM_CI == 'true'
     strategy:
       matrix:
         include:

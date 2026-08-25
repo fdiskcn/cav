@@ -43,8 +43,10 @@
             "name": "windows-release",
             "hidden": true,
             "inherits": "base",
-            "generator": "Visual Studio 17 2022",
-            "architecture": "x64",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Release",
+                "Mayo_PostBuildCopyRuntimeDLLs": "ON"
+            },
             "condition": {
                 "type": "equals",
                 "lhs": "${hostSystemName}",
@@ -164,6 +166,9 @@
             "displayName": "Windows · OpenGL (Debug)",
             "description": "Windows OpenGL viewport, Debug configuration.",
             "inherits": "windows-gl",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug"
+            },
             "condition": {
                 "type": "equals",
                 "lhs": "${hostSystemName}",
@@ -190,6 +195,9 @@
             "displayName": "Windows · NVIDIA RTX (Debug)",
             "description": "Windows NVIDIA RTX viewport, Debug configuration. Downloads the ovrtx SDK.",
             "inherits": "windows-nvidia-rtx",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug"
+            },
             "condition": {
                 "type": "equals",
                 "lhs": "${hostSystemName}",
