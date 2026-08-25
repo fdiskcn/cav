@@ -24,14 +24,31 @@ jobs:
       - uses: actions/github-script@v7
         with:
           script: |
-            const keepId = context.runId;
+            // Only cancel Mayo's upstream matrix. Never cancel this Environments
+            // run (or any other Environments run): those jobs are the product CI.
+            const mayo = new Set([
+              'Windows x64',
+              'Linux Ubuntu x64/arm64',
+              'macOS arm64',
+              'ovrtx USD tests',
+              'macOS-conda arm64',
+              'Linux Fedora x64',
+              'Linux Arch x64',
+              'Linux Ubuntu armv7',
+              'SonarCloud',
+            ]);
+            const keepId = Number(context.runId);
             for (const status of ['queued', 'in_progress']) {
               const runs = await github.paginate(
                 github.rest.actions.listWorkflowRunsForRepo,
                 { owner: context.repo.owner, repo: context.repo.repo, status, per_page: 100 }
               );
               for (const run of runs) {
-                if (run.id === keepId) continue;
+                if (Number(run.id) === keepId) continue;
+                if (!mayo.has(run.name)) {
+                  core.info(`keep ${run.name} #${run.run_number}`);
+                  continue;
+                }
                 core.info(`cancel ${run.name} #${run.run_number} ${run.id}`);
                 await github.rest.actions.cancelWorkflowRun({
                   owner: context.repo.owner,
@@ -42,6 +59,8 @@ jobs:
             }
 
   usd-tests:
+    needs: reclaim-runners
+    if: ${{ always() && needs.reclaim-runners.result != 'cancelled' }}
     strategy:
       fail-fast: false
       matrix:
@@ -61,6 +80,8 @@ jobs:
         run: python scripts/mayo-env.py test usd-tests --native
 
   macos-gl:
+    needs: reclaim-runners
+    if: ${{ always() && needs.reclaim-runners.result != 'cancelled' }}
     runs-on: macos-latest
     name: macos-gl
     steps:
@@ -73,6 +94,8 @@ jobs:
           python3 scripts/mayo-env.py test macos-gl --native
 
   linux-gl:
+    needs: reclaim-runners
+    if: ${{ always() && needs.reclaim-runners.result != 'cancelled' }}
     strategy:
       fail-fast: false
       matrix:
@@ -98,6 +121,8 @@ jobs:
         run: python3 scripts/mayo-env.py test linux-gl --native
 
   linux-nvidia-rtx:
+    needs: reclaim-runners
+    if: ${{ always() && needs.reclaim-runners.result != 'cancelled' }}
     strategy:
       fail-fast: false
       matrix:
@@ -128,6 +153,8 @@ jobs:
         run: python3 scripts/mayo-env.py test linux-nvidia-rtx --native
 
   windows-gl:
+    needs: reclaim-runners
+    if: ${{ always() && needs.reclaim-runners.result != 'cancelled' }}
     runs-on: windows-latest
     name: windows-gl
     steps:
@@ -158,6 +185,8 @@ jobs:
         run: python scripts/mayo-env.py test windows-gl --native
 
   windows-nvidia-rtx:
+    needs: reclaim-runners
+    if: ${{ always() && needs.reclaim-runners.result != 'cancelled' }}
     runs-on: windows-latest
     name: windows-nvidia-rtx-nocuda
     steps:
