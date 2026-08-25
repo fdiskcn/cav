@@ -84,6 +84,7 @@ jobs:
     if: ${{ always() && needs.reclaim-runners.result != 'cancelled' }}
     runs-on: macos-latest
     name: macos-gl
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v7
       - name: Install Qt and OpenCascade
@@ -102,6 +103,10 @@ jobs:
         os: [ubuntu-latest, ubuntu-24.04-arm]
     runs-on: ${{ matrix.os }}
     name: linux-gl-${{ matrix.os }}
+    timeout-minutes: 90
+    env:
+      PYTHONUNBUFFERED: "1"
+      CMAKE_BUILD_PARALLEL_LEVEL: "2"
     steps:
       - uses: actions/checkout@v7
       - name: Install packages
@@ -115,10 +120,18 @@ jobs:
             libtbb-dev libxi-dev libassimp-dev
           echo "fr_FR ISO-8859-15" | sudo tee -a /etc/locale.gen
           sudo locale-gen
-      - name: Build and test
+      - name: Configure
+        run: python3 scripts/mayo-env.py configure linux-gl --native
+      - name: Build
+        run: python3 scripts/mayo-env.py build linux-gl --native
+      - name: Test
         env:
-          CMAKE_BUILD_PARALLEL_LEVEL: "2"
-        run: python3 scripts/mayo-env.py test linux-gl --native
+          DISPLAY: ":99"
+        run: |
+          ulimit -c 0 || true
+          Xvfb :99 -screen 0 1280x1024x24 +extension GLX &
+          sleep 2
+          python3 scripts/mayo-env.py test linux-gl --native
 
   linux-nvidia-rtx:
     needs: reclaim-runners
@@ -129,6 +142,10 @@ jobs:
         os: [ubuntu-latest, ubuntu-24.04-arm]
     runs-on: ${{ matrix.os }}
     name: linux-nvidia-rtx-nocuda-${{ matrix.os }}
+    timeout-minutes: 90
+    env:
+      PYTHONUNBUFFERED: "1"
+      CMAKE_BUILD_PARALLEL_LEVEL: "2"
     steps:
       - uses: actions/checkout@v7
       - name: Install packages
@@ -147,10 +164,18 @@ jobs:
         with:
           path: cmake/_deps
           key: ovrtx-linux-${{ runner.arch }}-0.4.1-0.1.1
-      - name: Build and test ovrtx without CUDA
+      - name: Configure
+        run: python3 scripts/mayo-env.py configure linux-nvidia-rtx --native
+      - name: Build
+        run: python3 scripts/mayo-env.py build linux-nvidia-rtx --native
+      - name: Test ovrtx without CUDA
         env:
-          CMAKE_BUILD_PARALLEL_LEVEL: "2"
-        run: python3 scripts/mayo-env.py test linux-nvidia-rtx --native
+          DISPLAY: ":99"
+        run: |
+          ulimit -c 0 || true
+          Xvfb :99 -screen 0 1280x1024x24 +extension GLX &
+          sleep 2
+          python3 scripts/mayo-env.py test linux-nvidia-rtx --native
 
   windows-gl:
     needs: reclaim-runners

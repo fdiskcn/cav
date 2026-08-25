@@ -15,6 +15,7 @@ import platform
 import shutil
 import subprocess
 import sys
+import time
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 STATE_PATH = os.path.join(ROOT, ".mayo-env-current")
@@ -164,11 +165,47 @@ def docker_memory_bytes():
         return 0
 
 
-def apply_linux_headless_env():
-    """Start Xvfb on Linux when DISPLAY is unset."""
+def disable_core_dumps():
+    """Avoid multi-GB cores after Mesa/OCCT abort filling a CI disk."""
     if host_system() != "Linux":
         return
-    os.environ.setdefault("DISPLAY", ":99")
+    try:
+        import resource
+        resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
+    except (ImportError, ValueError, OSError):
+        pass
+
+
+def x11_socket_path(display):
+    spec = (display or "").split(",")[0].strip()
+    if not spec or spec.startswith("unix:"):
+        return None
+    _host, sep, screen = spec.partition(":")
+    if not sep or not screen:
+        return None
+    num = screen.split(".")[0]
+    if not num.isdigit():
+        return None
+    return os.path.join("/tmp/.X11-unix", "X" + num)
+
+
+def x_display_available(display):
+    sock = x11_socket_path(display)
+    if sock and os.path.exists(sock):
+        return True
+    xdpyinfo = shutil.which("xdpyinfo")
+    if not xdpyinfo:
+        return False
+    try:
+        subprocess.run(
+            [xdpyinfo, "-display", display],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=True,
+        )
+        return True
+    except (OSError, subprocess.CalledProcessError):
+        return False
 
 
 def cmake_exe():
@@ -304,7 +341,12 @@ def extra_cmake_args(env):
 
 def run(cmd, cwd=None):
     print("+ " + " ".join(cmd), flush=True)
-    subprocess.check_call(cmd, cwd=cwd or ROOT)
+    kwargs = {}
+    # Isolate cmake/ctest from the Actions runner session. A GL abort that
+    # signals the process group must not look like the job was cancelled.
+    if host_system() == "Linux":
+        kwargs["start_new_session"] = True
+    subprocess.check_call(cmd, cwd=cwd or ROOT, **kwargs)
 
 
 def ensure_linux_image():
@@ -391,20 +433,34 @@ def maybe_docker(args, rest_argv):
 
 
 def ensure_display():
+    """Start Xvfb when no X server is listening.
+
+    Do not set LIBGL_ALWAYS_SOFTWARE here. That Mesa llvmpipe path aborts in
+    Docker and is already applied only in docker_run_mayo_env / entrypoint.
+    GitHub-hosted Linux matches Mayo's Xvfb-only CI (no software-GL force,
+    no MAYO_SKIP_GL_TESTS).
+    """
     if host_system() != "Linux":
         return
-    if os.environ.get("DISPLAY"):
+    disable_core_dumps()
+    display = os.environ.get("DISPLAY") or ":99"
+    os.environ["DISPLAY"] = display
+    if x_display_available(display):
         return
     xvfb = shutil.which("Xvfb")
     if not xvfb:
         return
-    os.environ["DISPLAY"] = ":99"
-    os.environ.setdefault("LIBGL_ALWAYS_SOFTWARE", "1")
     subprocess.Popen(
-        [xvfb, ":99", "-screen", "0", "1280x1024x24", "+extension", "GLX"],
+        [xvfb, display, "-screen", "0", "1280x1024x24", "+extension", "GLX"],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
+        start_new_session=True,
     )
+    for _ in range(15):
+        time.sleep(0.2)
+        if x_display_available(display):
+            return
+    print("警告：Xvfb 可能未在 %s 上就绪。" % display, file=sys.stderr, flush=True)
 
 
 def cmd_list(args):
@@ -543,7 +599,6 @@ def cmd_test(args):
     else:
         bindir = bindir_for(env, debug)
     cmd_build(args)
-    apply_linux_headless_env()
     ensure_display()
     run([ctest, "--test-dir", bindir, "--output-on-failure", "-C", config])
 
