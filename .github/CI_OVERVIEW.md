@@ -2,7 +2,7 @@
 
 | 工作流 | 说明 |
 |--------|------|
-| [Environments](https://github.com/fdiskcn/cav/actions/workflows/ci_environments.yml) | `macos-gl` / `linux-gl` / `linux-nvidia-rtx` / `windows-gl` / `windows-nvidia-rtx` / `usd-tests`，不要求 GPU。`reclaim-runners` 只取消上游 Mayo 矩阵，不取消 Environments 作业。Linux 作业拆成 configure/build/test，并用 Xvfb（与上游 Mayo CI 相同，不设 `MAYO_SKIP_GL_TESTS`） |
+| [Environments](https://github.com/fdiskcn/cav/actions/workflows/ci_environments.yml) | `macos-gl` / `linux-gl` / `linux-nvidia-rtx` / `windows-gl` / `windows-nvidia-rtx` / `usd-tests`，不要求 GPU。`reclaim-runners` 只取消上游 Mayo 矩阵。Linux 用 Xvfb（不设 `MAYO_SKIP_GL_TESTS`）。macos-gl 超时 180 分钟，configure/build/test 分开 |
 | `ci_linux_*.yml`、`ci_macos*.yml`、`ci_windows.yml` | 上游 Mayo 发行矩阵。本仓库默认跳过（避免占满 runner）；`fougue/mayo` 或仓库变量 `MAYO_UPSTREAM_CI=true` 时运行 |
 | `sonar.yml` | Sonar 扫描 |
 

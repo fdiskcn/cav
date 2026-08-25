@@ -84,12 +84,22 @@ jobs:
     if: ${{ always() && needs.reclaim-runners.result != 'cancelled' }}
     runs-on: macos-latest
     name: macos-gl
-    timeout-minutes: 90
+    timeout-minutes: 180
+    env:
+      PYTHONUNBUFFERED: "1"
     steps:
       - uses: actions/checkout@v7
       - name: Install Qt and OpenCascade
         run: brew install qt@6 opencascade
-      - name: Build and test
+      - name: Configure
+        run: |
+          export CMAKE_PREFIX_PATH="$(brew --prefix qt@6);$(brew --prefix opencascade);$CMAKE_PREFIX_PATH"
+          python3 scripts/mayo-env.py configure macos-gl --native
+      - name: Build
+        run: |
+          export CMAKE_PREFIX_PATH="$(brew --prefix qt@6);$(brew --prefix opencascade);$CMAKE_PREFIX_PATH"
+          python3 scripts/mayo-env.py build macos-gl --native
+      - name: Test
         run: |
           export CMAKE_PREFIX_PATH="$(brew --prefix qt@6);$(brew --prefix opencascade);$CMAKE_PREFIX_PATH"
           python3 scripts/mayo-env.py test macos-gl --native
